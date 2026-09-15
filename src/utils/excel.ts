@@ -1,16 +1,18 @@
 import * as XLSX from 'xlsx';
 import type { Classroom } from '../types/classroom';
+import { text, type Language } from './language';
 import { getDisplayLayout, type Seating, type ViewMode } from './seating';
 
 const border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } } as const;
 
-export function downloadExcel(classroom: Classroom, seating: Seating, mode: ViewMode) {
+export function downloadExcel(classroom: Classroom, seating: Seating, mode: ViewMode, language: Language = 'ja') {
+  const t = text[language];
   const sheet = XLSX.utils.aoa_to_sheet([]);
   const layout = getDisplayLayout(classroom, seating, mode);
   const maxColumns = Math.max(...classroom.tables.map((row) => row.reduce((total, table) => total + table.seatCount + 1, 0)), 1);
   const merges: XLSX.Range[] = [XLSX.utils.decode_range(`A1:${XLSX.utils.encode_cell({ r: 0, c: maxColumns - 1 })}`)];
-  XLSX.utils.sheet_add_aoa(sheet, [[`${classroom.name} 座席表`]], { origin: 'A1' });
-  XLSX.utils.sheet_add_aoa(sheet, [['前']], { origin: 'A3' });
+  XLSX.utils.sheet_add_aoa(sheet, [[`${classroom.name} ${t.title}`]], { origin: 'A1' });
+  XLSX.utils.sheet_add_aoa(sheet, [[t.front]], { origin: 'A3' });
   layout.forEach((row, rowIndex) => {
     let column = 0;
     row.forEach(({ table, seats }) => {
@@ -30,6 +32,6 @@ export function downloadExcel(classroom: Classroom, seating: Seating, mode: View
   sheet.A1.s = { font: { bold: true, sz: 16 }, alignment: { horizontal: 'center' } };
   sheet.A3.s = { font: { bold: true }, alignment: { horizontal: 'center' } };
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, '座席表');
-  XLSX.writeFile(workbook, `${classroom.name}_${mode === 'teacher' ? '老师点名版' : '学生黑板版'}_座席表.xlsx`);
+  XLSX.utils.book_append_sheet(workbook, sheet, t.title);
+  XLSX.writeFile(workbook, `${classroom.name}_${mode === 'teacher' ? t.teacherView : t.studentView}_${t.title}.xlsx`);
 }
