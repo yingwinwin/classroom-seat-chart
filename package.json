@@ -10,14 +10,15 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "4.3.4",
-    "vite": "6.0.7",
+    "exceljs": "^4.4.0",
     "react": "latest",
     "react-dom": "latest",
+    "vite": "6.0.7",
     "xlsx": "latest"
   },
   "devDependencies": {
-    "typescript": "latest",
     "@types/react": "latest",
-    "@types/react-dom": "latest"
+    "@types/react-dom": "latest",
+    "typescript": "latest"
   }
 }

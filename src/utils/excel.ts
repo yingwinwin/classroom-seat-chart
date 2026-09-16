@@ -1,37 +1,72 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import type { Classroom } from '../types/classroom';
+import type { Student } from '../types/studentList';
 import { text, type Language } from './language';
-import { getDisplayLayout, type Seating, type ViewMode } from './seating';
+import { getDisplayLayout, getGridColumnStart, getGridColumnWidths, type Seating, type ViewMode } from './seating';
 
-const border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } } as const;
+const border = { style: 'thin' as const, color: { argb: 'FF000000' } };
 
-export function downloadExcel(classroom: Classroom, seating: Seating, mode: ViewMode, language: Language = 'ja') {
+export async function downloadExcel(classroom: Classroom, seating: Seating, students: Student[], mode: ViewMode, language: Language = 'ja') {
   const t = text[language];
-  const sheet = XLSX.utils.aoa_to_sheet([]);
+  const studentNames = new Map(students.map((student) => [student.id, student.name]));
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = '座席表作成ツール';
+  workbook.created = new Date();
+  const sheet = workbook.addWorksheet(t.title);
   const layout = getDisplayLayout(classroom, seating, mode);
-  const maxColumns = Math.max(...classroom.tables.map((row) => row.reduce((total, table) => total + table.seatCount + 1, 0)), 1);
-  const merges: XLSX.Range[] = [XLSX.utils.decode_range(`A1:${XLSX.utils.encode_cell({ r: 0, c: maxColumns - 1 })}`)];
-  XLSX.utils.sheet_add_aoa(sheet, [[`${classroom.name} ${t.title}`]], { origin: 'A1' });
-  XLSX.utils.sheet_add_aoa(sheet, [[t.front]], { origin: 'A3' });
+  const tableSlotWidths = getGridColumnWidths(classroom, mode);
+  const maxColumns = tableSlotWidths.reduce((total, width) => total + width + 1, 0) - 1;
+  const boardRow = mode === 'student' ? 3 : layout.length + 5;
+  const firstColumn = 1;
+  const lastColumn = maxColumns;
+  const columnName = (column: number) => {
+    let name = '';
+    let value = column;
+    while (value > 0) {
+      const remainder = (value - 1) % 26;
+      name = String.fromCharCode(65 + remainder) + name;
+      value = Math.floor((value - 1) / 26);
+    }
+    return name;
+  };
+  sheet.mergeCells(`A1:${columnName(lastColumn)}1`);
+  sheet.getCell('A1').value = classroom.name;
+  sheet.getCell('A1').font = { name: 'Yu Gothic', size: 16, bold: true };
+  sheet.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+  sheet.mergeCells(`A${boardRow + 1}:${columnName(lastColumn)}${boardRow + 1}`);
+  sheet.getCell(`A${boardRow + 1}`).value = t.front;
+  sheet.getCell(`A${boardRow + 1}`).font = { name: 'Yu Gothic', size: 12, bold: true };
+  sheet.getCell(`A${boardRow + 1}`).alignment = { horizontal: 'center', vertical: 'middle' };
+  sheet.views = [{ showGridLines: false }];
   layout.forEach((row, rowIndex) => {
-    let column = 0;
-    row.forEach(({ table, seats }) => {
-      XLSX.utils.sheet_add_aoa(sheet, [seats.map((seat) => seat.student ?? '')], { origin: { r: rowIndex + 4, c: column } });
+    row.forEach(({ table, columnIndex, seats }) => {
+      const column = getGridColumnStart(tableSlotWidths, columnIndex) + firstColumn;
       for (let seat = 0; seat < table.seatCount; seat += 1) {
-        const cell = XLSX.utils.encode_cell({ r: rowIndex + 4, c: column + seat });
-        if (!sheet[cell]) sheet[cell] = { t: 's', v: '' };
-        sheet[cell].s = { border, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } };
+        const cell = sheet.getCell(rowIndex + 5, column + seat);
+        const student = seats[seat].student;
+        cell.value = student ? studentNames.get(student) ?? '' : '';
+        cell.font = { name: 'Yu Gothic', size: 12 };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true, textRotation: 0 };
+        cell.border = { top: border, bottom: border, left: border, right: border };
       }
-      column += table.seatCount + 1;
     });
   });
-  sheet['!merges'] = merges;
-  sheet['!cols'] = Array.from({ length: maxColumns }, () => ({ wch: 12 }));
-  sheet['!rows'] = Array.from({ length: classroom.tables.length + 6 }, (_, index) => ({ hpt: index === 0 ? 24 : 32 }));
-  sheet['!pageSetup'] = { orientation: 'landscape', paperSize: '9', fitToWidth: 1, fitToHeight: 1 };
-  sheet.A1.s = { font: { bold: true, sz: 16 }, alignment: { horizontal: 'center' } };
-  sheet.A3.s = { font: { bold: true }, alignment: { horizontal: 'center' } };
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, t.title);
-  XLSX.writeFile(workbook, `${classroom.name}_${mode === 'teacher' ? t.teacherView : t.studentView}_${t.title}.xlsx`);
+  tableSlotWidths.forEach((width, tableIndex) => {
+    const column = getGridColumnStart(tableSlotWidths, tableIndex) + firstColumn;
+    for (let offset = 0; offset < width; offset += 1) sheet.getColumn(column + offset).width = 14;
+    if (tableIndex < tableSlotWidths.length - 1) sheet.getColumn(column + width).width = 4;
+  });
+  sheet.getRow(1).height = 26;
+  sheet.getRow(boardRow + 1).height = 24;
+  for (let row = 5; row < layout.length + 5; row += 1) sheet.getRow(row).height = 34;
+  const lastRow = Math.max(layout.length + 4, boardRow + 1);
+  sheet.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1, horizontalDpi: 300, verticalDpi: 300, margins: { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 }, printArea: `A1:${columnName(lastColumn)}${lastRow}` };
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${classroom.name}_${mode === 'teacher' ? t.teacherView : t.studentView}_${t.title}.xlsx`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
