@@ -1,0 +1,48 @@
+# dependencies
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+.yarn-cache/
+
+# build output
+dist/
+build/
+out/
+
+# environment files
+.env
+.env.*
+!.env.example
+
+# local development
+.vite/
+.cache/
+.tmp/
+temp/
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# OS files
+Thumbs.db
+
+# Cloudflare / Wrangler
+.wrangler/
+
+# test / coverage
+coverage/
+
+# local data
+*.local
