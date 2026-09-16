@@ -19,6 +19,17 @@ export async function downloadExcel(classroom: Classroom, seating: Seating, stud
   const boardRow = mode === 'student' ? 3 : layout.length + 5;
   const firstColumn = 1;
   const lastColumn = maxColumns;
+  const margins = { left: 0.3, right: 0.3, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 };
+  const printableWidthPoints = 11.69 * 72 - (margins.left + margins.right) * 72;
+  const printableHeightPoints = 8.27 * 72 - (margins.top + margins.bottom) * 72;
+  const separatorRatio = 0.28;
+  const seatColumnCount = tableSlotWidths.reduce((total, width) => total + width, 0);
+  const separatorColumnCount = Math.max(tableSlotWidths.length - 1, 0);
+  const seatColumnWidth = printableWidthPoints / (seatColumnCount + separatorColumnCount * separatorRatio) / 5.4;
+  const separatorWidth = seatColumnWidth * separatorRatio;
+  const dataRowCount = Math.max(layout.length, 1);
+  const fixedRowHeight = 26 + 28;
+  const dataRowHeight = (printableHeightPoints - fixedRowHeight) / dataRowCount;
   const columnName = (column: number) => {
     let name = '';
     let value = column;
@@ -53,14 +64,14 @@ export async function downloadExcel(classroom: Classroom, seating: Seating, stud
   });
   tableSlotWidths.forEach((width, tableIndex) => {
     const column = getGridColumnStart(tableSlotWidths, tableIndex) + firstColumn;
-    for (let offset = 0; offset < width; offset += 1) sheet.getColumn(column + offset).width = 14;
-    if (tableIndex < tableSlotWidths.length - 1) sheet.getColumn(column + width).width = 4;
+    for (let offset = 0; offset < width; offset += 1) sheet.getColumn(column + offset).width = seatColumnWidth;
+    if (tableIndex < tableSlotWidths.length - 1) sheet.getColumn(column + width).width = separatorWidth;
   });
   sheet.getRow(1).height = 26;
-  sheet.getRow(boardRow + 1).height = 24;
-  for (let row = 5; row < layout.length + 5; row += 1) sheet.getRow(row).height = 34;
+  sheet.getRow(boardRow + 1).height = 28;
+  for (let row = 5; row < layout.length + 5; row += 1) sheet.getRow(row).height = dataRowHeight;
   const lastRow = Math.max(layout.length + 4, boardRow + 1);
-  sheet.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1, horizontalDpi: 300, verticalDpi: 300, margins: { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 }, printArea: `A1:${columnName(lastColumn)}${lastRow}` };
+  sheet.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1, horizontalDpi: 300, verticalDpi: 300, margins, printArea: `A1:${columnName(lastColumn)}${lastRow}` };
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
