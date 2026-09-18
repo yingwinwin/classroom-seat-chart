@@ -5,7 +5,7 @@ import { StudentInput } from './components/StudentInput';
 import type { Classroom } from './types/classroom';
 import type { Student, StudentList } from './types/studentList';
 import { downloadExcel } from './utils/excel';
-import { text } from './utils/language';
+import { text, type Language } from './utils/language';
 import { assignStudents, countSeats, createEmptySeating, swapSeats, type Seating, type ViewMode } from './utils/seating';
 import { loadClassrooms, loadStudentLists, saveClassrooms, saveStudentLists } from './utils/storage';
 
@@ -14,7 +14,7 @@ function createId() {
 }
 
 export default function App() {
-  const language = 'ja';
+  const [language, setLanguage] = useState<Language>('ja');
   const t = text[language];
   const [classrooms, setClassrooms] = useState<Classroom[]>(loadClassrooms);
   const [studentLists, setStudentLists] = useState<StudentList[]>(loadStudentLists);
@@ -93,7 +93,9 @@ export default function App() {
   };
 
   return <main className="app-shell">
-    <header><h1>{t.title}</h1></header>
+    <header><div className="header-content"><h1>{t.title}</h1>
+    {/* <button className="language-switch" onClick={() => setLanguage((current) => current === 'ja' ? 'zh' : 'ja')} aria-label={t.language}>{t.otherLanguage}</button> */}
+    </div></header>
     <section className="controls">
       <div className="classroom-controls"><label>{t.classroom}<select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}><option value="">{t.selectClassroom}</option>{classrooms.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button className="secondary" disabled={!classroom} onClick={() => setEditor('edit')}>{t.edit}</button><button className="secondary" disabled={!classroom} onClick={deleteClassroom}>{t.remove}</button><button onClick={() => setEditor('new')}>{t.create}</button></div>
       <StudentInput value={studentsText} onChange={updateStudentsText} language={language} />
